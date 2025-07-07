@@ -1,68 +1,27 @@
-#!/usr/bin/env python
 import sys
-import warnings
+import os
+from crew import CompanyMcaCrew
+import json
 
-from datetime import datetime
-
-from company_mca.crew import CompanyMca
-
-warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
-
-# This main file is intended to be a way for you to run your
-# crew locally, so refrain from adding unnecessary logic into this file.
-# Replace with inputs you want to test with, it will automatically
-# interpolate any tasks and agents information
-
-def run():
-    """
-    Run the crew.
-    """
-    inputs = {
-        'topic': 'AI LLMs',
-        'current_year': str(datetime.now().year)
-    }
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python main.py 'Company Name'")
+        sys.exit(1)
+    
+    original_name = sys.argv[1]
+    
+    print(f"Checking availability for: {original_name}")
+    print("=" * 50)
     
     try:
-        CompanyMca().crew().kickoff(inputs=inputs)
+        crew = CompanyMcaCrew()
+        result = crew.run_crew(original_name)
+        print("\nResults:")
+        print(result)
+        
     except Exception as e:
-        raise Exception(f"An error occurred while running the crew: {e}")
+        print(f"Error: {str(e)}")
+        sys.exit(1)
 
-
-def train():
-    """
-    Train the crew for a given number of iterations.
-    """
-    inputs = {
-        "topic": "AI LLMs",
-        'current_year': str(datetime.now().year)
-    }
-    try:
-        CompanyMca().crew().train(n_iterations=int(sys.argv[1]), filename=sys.argv[2], inputs=inputs)
-
-    except Exception as e:
-        raise Exception(f"An error occurred while training the crew: {e}")
-
-def replay():
-    """
-    Replay the crew execution from a specific task.
-    """
-    try:
-        CompanyMca().crew().replay(task_id=sys.argv[1])
-
-    except Exception as e:
-        raise Exception(f"An error occurred while replaying the crew: {e}")
-
-def test():
-    """
-    Test the crew execution and returns the results.
-    """
-    inputs = {
-        "topic": "AI LLMs",
-        "current_year": str(datetime.now().year)
-    }
-    
-    try:
-        CompanyMca().crew().test(n_iterations=int(sys.argv[1]), eval_llm=sys.argv[2], inputs=inputs)
-
-    except Exception as e:
-        raise Exception(f"An error occurred while testing the crew: {e}")
+if __name__ == "__main__":
+    main()

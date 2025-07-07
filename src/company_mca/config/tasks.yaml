@@ -1,18 +1,47 @@
-generate_names:
+research_original_name:
   description: >
-    Based on the user's initial company name idea, generate a list of 20 unique, brandable company name suggestions. 
-    Make the names appealing, easy to remember, and suitable for incorporation in India.
-    Avoid common names that may likely be taken already.
-    
-    Original Idea: {initial_name}
+    Research the original company name '{original_name}' to understand why it was rejected.
+    Analyze the specific reasons for rejection and identify potential conflicts.
+    Extract key business domain and industry information from the original name.
   expected_output: >
-    A list of 20 brandable company name suggestions based on "{initial_name}".
+    A detailed analysis report including:
+    - Reason for name rejection
+    - Conflicting company details
+    - Business domain identification
+    - Industry classification
+  agent: name_researcher
 
-check_mca_availability:
+generate_alternative_names:
   description: >
-    For each of the 20 suggested names, check the MCA company name database to determine if they are available for incorporation.
-    Return a filtered list with only the names that are allowed for incorporation.
-
-    The tool `MCANameCheckerTool` will be available to help you verify names.
+    Based on the research findings, generate 30 creative alternative names that:
+    - Maintain the core business identity
+    - Follow MCA naming conventions
+    - Are brandable and professional
+    - Include variations with different suffixes (Pvt Ltd, Private Limited, etc.)
+    - Consider domain expertise from original name analysis
   expected_output: >
-    A list of company names that are available as per the MCA (Ministry of Corporate Affairs) name availability check.
+    A list of 30 alternative company names with brief explanations for each name's
+    relevance to the original business concept.
+  agent: name_generator
+  context:
+    - research_original_name
+
+validate_name_availability:
+  description: >
+    Validate each generated name against MCA database for availability.
+    Check for:
+    - Exact matches
+    - Similar sounding names
+    - Names with similar spelling
+    - Compliance with MCA guidelines
+    Filter and return only the top 20 available names.
+  expected_output: >
+    A final list of 20 validated, available company names with:
+    - Availability status
+    - Similarity score to original name
+    - Brandability rating
+    - Legal compliance confirmation
+  agent: name_validator
+  context:
+    - research_original_name
+    - generate_alternative_names

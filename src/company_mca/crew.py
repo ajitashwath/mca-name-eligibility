@@ -1,64 +1,95 @@
-from crewai import Agent, Crew, Process, Task
+import os
+from crewai import Agent, Task, Crew, Process
 from crewai.project import CrewBase, agent, crew, task
-from crewai.agents.agent_builder.base_agent import BaseAgent
-from typing import List
-# If you want to run a snippet of code before or after the crew starts,
-# you can use the @before_kickoff and @after_kickoff decorators
-# https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
+from src.company_mca.tools.custom_tool import mca_name_checker
+import yaml
 
 @CrewBase
-class CompanyMca():
-    """CompanyMca crew"""
-
-    agents: List[BaseAgent]
-    tasks: List[Task]
-
-    # Learn more about YAML configuration files here:
-    # Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
-    # Tasks: https://docs.crewai.com/concepts/tasks#yaml-configuration-recommended
+class CompanyMcaCrew():
+    def __init__(self):
+        self.agents_config = self._load_config('config/agents.yaml')
+        self.tasks_config = self._load_config('config/tasks.yaml')
     
-    # If you would like to add tools to your agents, you can learn more about it here:
-    # https://docs.crewai.com/concepts/agents#agent-tools
+    def _load_config(self, file_path: str) -> dict:
+        with open(file_path, 'r') as file:
+            return yaml.safe_load(file)
+    
     @agent
-    def researcher(self) -> Agent:
+    def name_researcher(self) -> Agent:
+        config = self.agents_config['name_researcher']
         return Agent(
-            config=self.agents_config['researcher'], # type: ignore[index]
-            verbose=True
+            role=config['role'],
+            goal=config['goal'],
+            backstory=config['backstory'],
+            verbose=config['verbose'],
+            allow_delegation=config['allow_delegation'],
+            max_iter=config['max_iter'],
+            tools=[mca_name_checker]
         )
-
+    
     @agent
-    def reporting_analyst(self) -> Agent:
+    def name_generator(self) -> Agent:
+        config = self.agents_config['name_generator']
         return Agent(
-            config=self.agents_config['reporting_analyst'], # type: ignore[index]
-            verbose=True
+            role=config['role'],
+            goal=config['goal'],
+            backstory=config['backstory'],
+            verbose=config['verbose'],
+            allow_delegation=config['allow_delegation'],
+            max_iter=config['max_iter'],
+            tools=[mca_name_checker]
         )
-
-    # To learn more about structured task outputs,
-    # task dependencies, and task callbacks, check out the documentation:
-    # https://docs.crewai.com/concepts/tasks#overview-of-a-task
+    
+    @agent
+    def name_validator(self) -> Agent:
+        config = self.agents_config['name_validator']
+        return Agent(
+            role=config['role'],
+            goal=config['goal'],
+            backstory=config['backstory'],
+            verbose=config['verbose'],
+            allow_delegation=config['allow_delegation'],
+            max_iter=config['max_iter'],
+            tools=[mca_name_checker]
+        )
+    
     @task
-    def research_task(self) -> Task:
+    def research_original_name(self) -> Task:
+        config = self.tasks_config['research_original_name']
         return Task(
-            config=self.tasks_config['research_task'], # type: ignore[index]
+            description=config['description'],
+            expected_output=config['expected_output'],
+            agent=self.name_researcher()
         )
-
+    
     @task
-    def reporting_task(self) -> Task:
+    def generate_alternative_names(self) -> Task:
+        config = self.tasks_config['generate_alternative_names']
         return Task(
-            config=self.tasks_config['reporting_task'], # type: ignore[index]
-            output_file='report.md'
+            description=config['description'],
+            expected_output=config['expected_output'],
+            agent=self.name_generator(),
+            context=[self.research_original_name()]
         )
-
+    
+    @task
+    def validate_name_availability(self) -> Task:
+        config = self.tasks_config['validate_name_availability']
+        return Task(
+            description=config['description'],
+            expected_output=config['expected_output'],
+            agent=self.name_validator(),
+            context=[self.research_original_name(), self.generate_alternative_names()]
+        )
+    
     @crew
     def crew(self) -> Crew:
-        """Creates the CompanyMca crew"""
-        # To learn how to add knowledge sources to your crew, check out the documentation:
-        # https://docs.crewai.com/concepts/knowledge#what-is-knowledge
-
+        """Create the crew"""
         return Crew(
-            agents=self.agents, # Automatically created by the @agent decorator
-            tasks=self.tasks, # Automatically created by the @task decorator
             process=Process.sequential,
-            verbose=True,
-            # process=Process.hierarchical, # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
+            verbose=True
         )
+    
+    def run_crew(self, original_name: str) -> str:
+        result = self.crew().kickoff(inputs={"original_name": original_name})
+        return str(result)
