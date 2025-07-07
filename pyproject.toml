@@ -1,0 +1,23 @@
+[project]
+name = "company_mca"
+version = "0.1.0"
+description = "company-mca using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]>=0.134.0,<1.0.0"
+]
+
+[project.scripts]
+company_mca = "company_mca.main:run"
+run_crew = "company_mca.main:run"
+train = "company_mca.main:train"
+replay = "company_mca.main:replay"
+test = "company_mca.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
