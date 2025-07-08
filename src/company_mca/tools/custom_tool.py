@@ -1,26 +1,45 @@
 import requests
 import json
 from typing import Dict, List, Any
-from crewai.tools import BaseTool
+from crewai.tools import tool
 import time
 import random
 from fuzzywuzzy import fuzz
 import re
+import os
 
-class MCANameChecker(BaseTool):
+@tool("MCA Name Checker")
+def mca_name_checker(company_name: str) -> Dict[str, Any]:
+    """
+    Check company name availability through Finanvo API and validate naming conventions.
+    
+    Args:
+        company_name: The company name to check for availability
+        
+    Returns:
+        Dictionary containing availability status, validation results, and recommendations
+    """
+    try:
+        checker = MCANameChecker()
+        return checker.check_name(company_name)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "name": company_name,
+            "is_available": False
+        }
+
+class MCANameChecker:
     def __init__(self):
-        super().__init__(
-            name="MCA Name Checker",
-            description="Check company name availability through Finanvo API and validate naming conventions"
-        )
         self.base_url = "https://api.finanvo.in"
         self.headers = {
             'Content-Type': 'application/json',
             'x-api-key': 'be2SxiTi',
             'x-api-secret-key': '0oOwfzhylxtH7OZZA9GuBc5cyGOCrqEqSixOuV'
         }
+        self.run_applications = {}
     
-    def _run(self, company_name: str) -> Dict[str, Any]:
+    def check_name(self, company_name: str) -> Dict[str, Any]:
         try:
             cleaned_name = self._clean_company_name(company_name)
             availability_result = self._check_company_existence(cleaned_name)
@@ -43,6 +62,7 @@ class MCANameChecker(BaseTool):
             }
     
     def _clean_company_name(self, name: str) -> str:
+        """Clean company name by removing suffixes and special characters"""
         suffixes = ['pvt ltd', 'private limited', 'ltd', 'limited', 'pvt', 'private']
         cleaned = name.lower()
         
@@ -55,22 +75,33 @@ class MCANameChecker(BaseTool):
     
     def _search_companies_by_name(self, search_term: str) -> List[Dict]:
         found_companies = []
-        search_variations = [
-            search_term,
-            search_term.replace(' ', ''),
-            search_term.upper(),
-            search_term.title()
-        ]
         
-        for variation in search_variations:
-            try:
-                time.sleep(0.5)
-                mock_results = self._mock_company_search(variation)
-                found_companies.extend(mock_results)
+        try:
+            url = f"{self.base_url}/company/search"
+            params = {
+                "name": search_term,
+                "limit": 10
+            }
+            
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success") and data.get("data"):
+                    for company in data["data"]:
+                        found_companies.append({
+                            "company_name": company.get("company_name", ""),
+                            "cin": company.get("cin", ""),
+                            "status": company.get("status", ""),
+                            "similarity": fuzz.ratio(search_term.lower(), 
+                                                   company.get("company_name", "").lower())
+                        })
+            else:
+                found_companies = self._mock_company_search(search_term)
                 
-            except Exception as e:
-                print(f"Error searching for {variation}: {e}")
-                continue
+        except Exception as e:
+            print(f"API Error: {e}. Using mock data.")
+            found_companies = self._mock_company_search(search_term)
         
         return found_companies
     
@@ -88,25 +119,11 @@ class MCANameChecker(BaseTool):
                 conflicts.append({
                     "company_name": f"{name.title()} {pattern.title()} Private Limited",
                     "cin": f"U{random.randint(10000, 99999)}DL{random.randint(2000, 2023)}PTC{random.randint(100000, 999999)}",
+                    "status": "Active",
                     "similarity": fuzz.ratio(name_lower, f"{name_lower} {pattern}")
                 })
         
         return conflicts[:3]
-    
-    def _get_company_by_cin(self, cin: str) -> Dict[str, Any]:
-        try:
-            url = f"{self.base_url}/company/profile"
-            params = {"CIN": cin}
-            
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return {"error": f"API returned status {response.status_code}"}
-                
-        except requests.exceptions.RequestException as e:
-            return {"error": f"API request failed: {str(e)}"}
     
     def _check_company_existence(self, name: str) -> Dict[str, Any]:
         try:
@@ -121,7 +138,7 @@ class MCANameChecker(BaseTool):
                 
                 similarity = fuzz.ratio(name.lower(), cleaned_existing)
                 
-                if similarity > 95:  
+                if similarity > 95:
                     exact_matches.append(company)
                 elif similarity > 70:
                     company["similarity"] = similarity
@@ -132,13 +149,13 @@ class MCANameChecker(BaseTool):
             return {
                 "available": len(exact_matches) == 0 and len(similar_companies) == 0,
                 "exact_matches": exact_matches,
-                "existing_companies": similar_companies[:5],  
+                "existing_companies": similar_companies[:5],
                 "total_found": len(existing_companies)
             }
             
         except Exception as e:
             return {
-                "available": True, 
+                "available": True,
                 "error": str(e),
                 "existing_companies": []
             }
@@ -146,7 +163,6 @@ class MCANameChecker(BaseTool):
     def _validate_naming_conventions(self, name: str) -> Dict[str, Any]:
         errors = []
         warnings = []
-
         if len(name) < 3:
             errors.append("Company name too short (minimum 3 characters)")
         elif len(name) > 120:
@@ -194,19 +210,62 @@ class MCANameChecker(BaseTool):
     def _get_recommendation(self, availability: Dict, validation: Dict) -> str:
         if not availability["available"]:
             if availability.get("exact_matches"):
-                return "Name not available - exact match found in MCA database"
+                return "❌ Name not available - exact match found in MCA database"
             elif availability.get("existing_companies"):
                 similar_count = len(availability["existing_companies"])
-                return f"Name may be rejected - {similar_count} similar companies found"
+                return f"⚠️ Name may be rejected - {similar_count} similar companies found"
         
         if not validation["is_valid"]:
             error_count = len(validation["errors"])
-            return f"Name validation failed - {error_count} naming convention errors"
+            return f"❌ Name validation failed - {error_count} naming convention errors"
         
         if validation["warnings"]:
             warning_count = len(validation["warnings"])
-            return f"Name available with minor issues - {warning_count} warnings to consider"
+            return f"⚠️ Name available with minor issues - {warning_count} warnings to consider"
         
-        return "Name appears available and compliant with MCA guidelines"
+        return "✅ Name appears available and compliant with MCA guidelines"
 
-mca_name_checker = MCANameChecker()
+mca_checker_instance = MCANameChecker()
+
+'''
+class MCANameCheckerTool:
+    def run(self, company_name: str) -> Dict[str, Any]:
+        return mca_checker_instance.check_name(company_name)
+
+# Create the tool instance
+mca_name_checker_tool = MCANameCheckerTool()
+'''
+
+def get_name_suggestions(base_name: str, count: int = 5) -> List[str]:
+    suggestions = []
+    base_cleaned = re.sub(r'[^a-zA-Z0-9\s]', '', base_name).strip()
+    
+    suffixes = ['Pvt Ltd', 'Private Limited', 'Ltd']
+    prefixes = ['', 'New ', 'Modern ', 'Global ', 'Smart ']
+    middle_words = ['Solutions', 'Systems', 'Services', 'Enterprises', 'Technologies']
+    
+    for i in range(count):
+        if i == 0:
+            suggestions.append(f"{base_cleaned} Private Limited")
+        elif i == 1:
+            suggestions.append(f"{base_cleaned} Pvt Ltd")
+        else:
+            prefix = random.choice(prefixes)
+            middle = random.choice(middle_words)
+            suffix = random.choice(suffixes)
+            suggestion = f"{prefix}{base_cleaned} {middle} {suffix}".strip()
+            if suggestion not in suggestions:
+                suggestions.append(suggestion)
+    
+    return suggestions
+
+def batch_check_names(company_names: List[str]) -> List[Dict[str, Any]]:
+    results = []
+    checker = MCANameChecker()
+    
+    for name in company_names:
+        result = checker.check_name(name)
+        results.append(result)
+        time.sleep(0.1)
+    
+    return results

@@ -1,3 +1,8 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+sys.modules["sqlite3.dbapi2"] = sys.modules["pysqlite3.dbapi2"]
+
 import streamlit as st
 import pandas as pd
 from src.company_mca.crew import CompanyMcaCrew
@@ -69,7 +74,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def initialize_session_state():
-    """Initialize session state variables"""
     if 'results' not in st.session_state:
         st.session_state.results = None
     if 'processing' not in st.session_state:
@@ -155,8 +159,7 @@ def generate_alternative_names(base_name: str, count: int = 5) -> List[str]:
     
     if len(words) > 0:
         first_word = words[0].title()
-        
-        # Add suffix variations
+
         for suffix in suffixes[:count]:
             alternatives.append(f"{first_word} {suffix}")
     
@@ -164,9 +167,11 @@ def generate_alternative_names(base_name: str, count: int = 5) -> List[str]:
 
 def process_company_names(original_name: str, check_alternatives: bool = True):
     results = []
+
     st.write("🔍 **Checking original name...**")
     original_result = check_single_name(original_name)
     results.append(original_result)
+
     if check_alternatives:
         st.write("💡 **Generating and checking alternatives...**")
         alternatives = generate_alternative_names(original_name)
@@ -205,7 +210,6 @@ def display_results(results: List[Dict]):
         st.metric("Average Score", f"{sum(scores)/len(scores):.1f}")
     with col4:
         st.metric("Best Score", f"{max(scores)}")
-    
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Detailed Results", "📈 Score Analysis", "⚠️ Issues Summary", "📥 Export Data"])
     
     with tab1:
@@ -215,7 +219,7 @@ def display_results(results: List[Dict]):
             with col1:
                 display_name_card(result["name"], result["status"], result, i)
             with col2:
-                st.write("")
+                st.write("")  # Spacing
                 if st.button(f"View Details", key=f"details_{i}"):
                     st.session_state.selected_name = result
                 
@@ -236,7 +240,7 @@ def display_results(results: List[Dict]):
         )
         fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
-        
+
         st.write("**Score Interpretation:**")
         st.write("- 90-100: Excellent compliance")
         st.write("- 70-89: Good with minor issues")
@@ -336,7 +340,6 @@ def main():
     initialize_session_state()
     display_header()
     display_sidebar()
-
     st.subheader("🔍 Company Name Availability Checker")
     
     col1, col2 = st.columns([3, 1])
@@ -351,6 +354,7 @@ def main():
     with col2:
         st.write("")
         check_alternatives = st.checkbox("Generate alternatives", value=True)
+
     col1, col2, col3 = st.columns([2, 2, 2])
     
     with col1:
@@ -377,9 +381,12 @@ def main():
                 st.dataframe(history_df, use_container_width=True)
             else:
                 st.info("No search history available")
+    
     if st.session_state.results:
         st.markdown("---")
         display_results(st.session_state.results)
+    
+
     if st.session_state.selected_name:
         st.markdown("---")
         st.subheader("📋 Detailed Analysis")
@@ -404,7 +411,8 @@ def main():
                 st.warning("**Warnings:**")
                 for warning in validation["warnings"]:
                     st.write(f"- {warning}")
-    st.markdown("---")
+    
+
     st.markdown(
         "🏢 **MCA Company Name Checker** | "
         "Powered by Finanvo API & CrewAI | "
