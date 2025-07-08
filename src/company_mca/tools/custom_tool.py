@@ -106,22 +106,42 @@ class MCANameChecker:
         return found_companies
     
     def _mock_company_search(self, name: str) -> List[Dict]:
-        common_patterns = [
-            "tech", "solutions", "systems", "services", "innovations", 
-            "enterprises", "consulting", "digital", "software", "info"
+        common_businesses = [
+            "solutions", "systems", "services", "technologies", "enterprises",
+            "consulting", "digital", "software", "innovations", "labs",
+            "ventures", "industries", "corporation", "holdings", "group"
         ]
+        
+        locations = ["Delhi", "Mumbai", "Bangalore", "Chennai", "Hyderabad", "Pune"]
         
         name_lower = name.lower()
         conflicts = []
+        words = name_lower.split()
         
-        for pattern in common_patterns:
-            if pattern in name_lower:
-                conflicts.append({
-                    "company_name": f"{name.title()} {pattern.title()} Private Limited",
-                    "cin": f"U{random.randint(10000, 99999)}DL{random.randint(2000, 2023)}PTC{random.randint(100000, 999999)}",
-                    "status": "Active",
-                    "similarity": fuzz.ratio(name_lower, f"{name_lower} {pattern}")
-                })
+        for i in range(random.randint(0, 4)):
+            if words:
+                base_word = random.choice(words)
+                business_type = random.choice(common_businesses)
+                location = random.choice(locations)
+                patterns = [
+                    f"{base_word.title()} {business_type.title()} Private Limited",
+                    f"{base_word.title()} {business_type.title()} Pvt Ltd",
+                    f"New {base_word.title()} {business_type.title()} Limited",
+                    f"{base_word.title()} {location} {business_type.title()} Pvt Ltd",
+                    f"Global {base_word.title()} {business_type.title()} Private Limited"
+                ]
+                
+                conflict_name = random.choice(patterns)
+                similarity = fuzz.ratio(name_lower, conflict_name.lower())
+                if similarity > 30:
+                    conflicts.append({
+                        "company_name": conflict_name,
+                        "cin": f"U{random.randint(10000, 99999)}{random.choice(['DL', 'MH', 'KA'])}{random.randint(2010, 2023)}PTC{random.randint(100000, 999999)}",
+                        "status": random.choice(["Active", "Inactive", "Struck Off"]),
+                        "similarity": similarity
+                    })
+        
+        conflicts.sort(key=lambda x: x["similarity"], reverse=True)
         
         return conflicts[:3]
     
@@ -167,11 +187,14 @@ class MCANameChecker:
             errors.append("Company name too short (minimum 3 characters)")
         elif len(name) > 120:
             errors.append("Company name too long (maximum 120 characters)")
-
+        
         prohibited_words = [
-            'bank', 'insurance', 'government', 'ministry', 'national', 'central',
-            'reserve', 'federal', 'authority', 'commission', 'corporation of india',
-            'registrar', 'co-operative', 'municipal', 'panchayat'
+            'bank', 'banking', 'insurance', 'government', 'ministry', 'national', 
+            'central', 'reserve', 'federal', 'authority', 'commission', 
+            'corporation of india', 'registrar', 'co-operative', 'municipal', 
+            'panchayat', 'king', 'queen', 'emperor', 'prince', 'princess',
+            'supreme', 'tribunal', 'court', 'university', 'college',
+            'trust', 'society', 'foundation', 'council'
         ]
         
         name_lower = name.lower()
@@ -186,27 +209,34 @@ class MCANameChecker:
         
         has_valid_suffix = any(name.lower().endswith(suffix) for suffix in valid_suffixes)
         if not has_valid_suffix:
-            warnings.append("Consider adding proper suffix (Pvt Ltd or Private Limited)")
-
+            errors.append("Company name must end with proper suffix (Pvt Ltd or Private Limited)")
         if re.search(r'[^a-zA-Z0-9\s\.\-&()]', name):
-            warnings.append("Special characters may cause issues during incorporation")
- 
+            errors.append("Invalid characters found (only letters, numbers, spaces, dots, hyphens, ampersands, and parentheses allowed)")
         if re.search(r'^\d', name):
             errors.append("Company name cannot start with a number")
-
         if re.search(r'\s{2,}', name):
             warnings.append("Multiple consecutive spaces found")
         
         if name != name.strip():
             warnings.append("Leading or trailing spaces detected")
-        
+        words = name.split()
+        if len(words) > 15:
+            warnings.append("Very long names may face scrutiny during approval")
+
+        base_score = 100
+        base_score -= len(errors) * 25  
+        base_score -= len(warnings) * 5
+        if has_valid_suffix:
+            base_score += 5
+        if 3 <= len(words) <= 5:
+            base_score += 5
         return {
             "is_valid": len(errors) == 0,
             "errors": errors,
             "warnings": warnings,
-            "score": max(0, 100 - len(errors) * 30 - len(warnings) * 10)
+            "score": max(0, min(100, base_score))
         }
-    
+        
     def _get_recommendation(self, availability: Dict, validation: Dict) -> str:
         if not availability["available"]:
             if availability.get("exact_matches"):

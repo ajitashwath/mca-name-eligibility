@@ -1,8 +1,9 @@
+'''
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 sys.modules["sqlite3.dbapi2"] = sys.modules["pysqlite3.dbapi2"]
-
+'''
 import streamlit as st
 import pandas as pd
 from src.company_mca.crew import CompanyMcaCrew
@@ -12,6 +13,8 @@ import time
 from typing import Dict, List
 import plotly.express as px
 import plotly.graph_objects as go
+import random
+import re
 
 st.set_page_config(
     page_title="MCA Company Name Checker",
@@ -21,56 +24,70 @@ st.set_page_config(
 )
 
 st.markdown("""
-<style>
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-    .result-card {
-        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 5px solid #28a745;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .warning-card {
-        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 5px solid #ffc107;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .error-card {
-        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 5px solid #dc3545;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .metric-card {
-        background: white;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        text-align: center;
-    }
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-weight: bold;
-    }
-</style>
+    <style>
+        .main-header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+        }
+        
+        .result-card {
+            background: #1f2937;
+            border: 1px solid #374151;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border-left: 4px solid #22c55e;
+            margin: 1rem 0;
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+            color: white;
+        }
+        
+        .warning-card {
+            background: #1f2937;
+            border: 1px solid #374151;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border-left: 4px solid #f59e0b;
+            margin: 1rem 0;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+            color: white;
+        }
+        
+        .error-card {
+            background: #1f2937;
+            border: 1px solid #374151;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border-left: 4px solid #ef4444;
+            margin: 1rem 0;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+            color: white;
+        }
+        
+        .metric-card {
+            background: #1f2937;
+            border: 1px solid #374151;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            color: white;
+        }
+        
+        .stButton > button {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+    </style>
 """, unsafe_allow_html=True)
 
 def initialize_session_state():
@@ -150,20 +167,64 @@ def check_single_name(company_name: str) -> Dict:
             "details": {"error": str(e)}
         }
 
-def generate_alternative_names(base_name: str, count: int = 5) -> List[str]:
-    base_clean = base_name.lower().replace('pvt ltd', '').replace('private limited', '').replace('ltd', '').strip()
-    suffixes = ['Solutions Pvt Ltd', 'Systems Pvt Ltd', 'Services Pvt Ltd', 'Technologies Pvt Ltd', 'Innovations Pvt Ltd']
-
-    alternatives = []
+def generate_alternative_names(base_name: str, count: int = 20) -> List[str]:
+    """Generate 20 diverse, MCA-compliant company name alternatives"""
+    base_clean = re.sub(r'(pvt ltd|private limited|ltd|limited)', '', base_name.lower()).strip()
     words = base_clean.split()
     
-    if len(words) > 0:
-        first_word = words[0].title()
-
-        for suffix in suffixes[:count]:
-            alternatives.append(f"{first_word} {suffix}")
+    alternatives = []
+    tech_words = ['Technologies', 'Systems', 'Digital', 'Cyber', 'Data', 'Cloud', 'AI', 'Tech']
+    service_words = ['Solutions', 'Services', 'Consulting', 'Advisory', 'Associates', 'Partners']
+    business_words = ['Enterprises', 'Ventures', 'Industries', 'Corporation', 'Group', 'Holdings']
+    modern_words = ['Innovations', 'Labs', 'Hub', 'Works', 'Studio', 'Forge', 'Nexus']
+    prefixes = ['', 'Global ', 'Smart ', 'Prime ', 'Elite ', 'Neo ', 'Pro ', 'Meta ']
     
-    return alternatives
+    suffixes = ['Private Limited', 'Pvt Ltd']
+    word_categories = [tech_words, service_words, business_words, modern_words]
+    
+    for i in range(count):
+        if i < len(words):
+            word = words[i].title()
+            category = word_categories[i % len(word_categories)]
+            middle = random.choice(category)
+            prefix = random.choice(prefixes)
+            suffix = random.choice(suffixes)
+            name = f"{prefix}{word} {middle} {suffix}".strip()
+        else:
+            if len(words) >= 2:
+                base = f"{words[0].title()}{words[1].title()}"
+            else:
+                base = words[0].title()
+            
+            category = word_categories[i % len(word_categories)]
+            middle = random.choice(category)
+            prefix = random.choice(prefixes)
+            suffix = random.choice(suffixes)
+
+            if i % 4 == 0:
+                name = f"{prefix}{base} {middle} {suffix}".strip()
+            elif i % 4 == 1:
+                name = f"{base} {middle} {suffix}".strip()
+            elif i % 4 == 2:
+                name = f"{prefix}{middle} {base} {suffix}".strip()
+            else:
+                name = f"{base}{middle} {suffix}".strip()
+        
+        if name not in alternatives:
+            alternatives.append(name)
+    
+    while len(alternatives) < count:
+        base_word = random.choice(words).title()
+        category = random.choice(word_categories)
+        middle = random.choice(category)
+        prefix = random.choice(prefixes)
+        suffix = random.choice(suffixes)
+        name = f"{prefix}{base_word} {middle} {suffix}".strip()
+        
+        if name not in alternatives:
+            alternatives.append(name)
+    
+    return alternatives[:count]
 
 def process_company_names(original_name: str, check_alternatives: bool = True):
     results = []
