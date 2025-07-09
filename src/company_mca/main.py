@@ -1,9 +1,8 @@
-'''
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 sys.modules["sqlite3.dbapi2"] = sys.modules["pysqlite3.dbapi2"]
-'''
+
 import sys
 import os
 from crew import CompanyMcaCrew
@@ -17,7 +16,6 @@ def main():
     original_name = sys.argv[1]
     
     print(f"Checking availability for: {original_name}")
-    print("=" * 50)
     
     try:
         crew = CompanyMcaCrew()
