@@ -237,6 +237,7 @@ class MCANameChecker:
             "score": max(0, min(100, base_score))
         }
         
+        
     def _get_recommendation(self, availability: Dict, validation: Dict) -> str:
         if not availability["available"]:
             if availability.get("exact_matches"):
